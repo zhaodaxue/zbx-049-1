@@ -1,5 +1,6 @@
 import type { LossRecord } from "@/types";
 import { useDashboardStore } from "@/store/useDashboardStore";
+import { filterHighLoss } from "@/utils/calcLoss";
 import { AlertTriangle } from "lucide-react";
 
 interface Props {
@@ -8,7 +9,7 @@ interface Props {
 
 export default function HighLossTable({ records }: Props) {
   const { selectedCategory, setSelectedCategory } = useDashboardStore();
-  const highLoss = records.filter((r) => r.isHighLoss);
+  const highLoss = filterHighLoss(records);
 
   if (highLoss.length === 0) {
     return (

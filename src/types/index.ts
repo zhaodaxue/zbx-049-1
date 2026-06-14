@@ -9,4 +9,6 @@ export interface BatchRecord {
 export interface LossRecord extends BatchRecord {
   lossRate: number;
   isHighLoss: boolean;
+  isInvalid: boolean;
+  invalidReason?: string;
 }

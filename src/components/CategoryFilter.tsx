@@ -1,5 +1,6 @@
 import type { LossRecord } from "@/types";
 import { useDashboardStore } from "@/store/useDashboardStore";
+import { getCategories } from "@/utils/calcLoss";
 
 interface Props {
   records: LossRecord[];
@@ -7,7 +8,7 @@ interface Props {
 
 export default function CategoryFilter({ records }: Props) {
   const { selectedCategory, setSelectedCategory } = useDashboardStore();
-  const categories = [...new Set(records.map((r) => r.category))];
+  const categories = getCategories(records);
 
   return (
     <div className="flex flex-wrap gap-2">

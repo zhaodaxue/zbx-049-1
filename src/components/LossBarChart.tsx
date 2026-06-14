@@ -6,6 +6,7 @@ import { GridComponent, TooltipComponent, TitleComponent } from "echarts/compone
 import { CanvasRenderer } from "echarts/renderers";
 import type { LossRecord } from "@/types";
 import { useDashboardStore } from "@/store/useDashboardStore";
+import { filterValidRecords } from "@/utils/calcLoss";
 
 echarts.use([BarChart, GridComponent, TooltipComponent, TitleComponent, CanvasRenderer]);
 
@@ -16,12 +17,12 @@ interface Props {
 export default function LossBarChart({ records }: Props) {
   const { selectedCategory, setSelectedCategory } = useDashboardStore();
 
-  const sorted = useMemo(() => [...records], [records]);
+  const validRecords = useMemo(() => filterValidRecords(records), [records]);
 
   const option = useMemo(() => {
-    const batchIds = sorted.map((r) => r.batchId);
-    const lossValues = sorted.map((r) => +(r.lossRate * 100).toFixed(2));
-    const colors = sorted.map((r) => {
+    const batchIds = validRecords.map((r) => r.batchId);
+    const lossValues = validRecords.map((r) => +(r.lossRate * 100).toFixed(2));
+    const colors = validRecords.map((r) => {
       if (r.isHighLoss) return "#E94560";
       if (selectedCategory && r.category !== selectedCategory) return "rgba(25,167,206,0.25)";
       return "#19A7CE";
@@ -43,7 +44,8 @@ export default function LossBarChart({ records }: Props) {
         formatter: (params: unknown) => {
           const p = Array.isArray(params) ? params[0] : params;
           const idx = p.dataIndex as number;
-          const rec = sorted[idx];
+          const rec = validRecords[idx];
+          if (!rec) return "";
           return `<b>${rec.batchId}</b><br/>品类：${rec.category}<br/>损耗率：<span style="color:#E94560;font-weight:bold">${(rec.lossRate * 100).toFixed(2)}%</span><br/>到货：${rec.arrivalWeight}kg → 解冻：${rec.thawedWeight}kg<br/>到货日：${rec.arrivalDate}`;
         },
       },
@@ -56,6 +58,7 @@ export default function LossBarChart({ records }: Props) {
       yAxis: {
         type: "category" as const,
         data: batchIds,
+        inverse: true,
         axisLabel: { color: "#A5D7E8", fontSize: 10, fontFamily: "JetBrains Mono, monospace" },
         axisLine: { lineStyle: { color: "rgba(87,108,188,0.3)" } },
       },
@@ -75,12 +78,12 @@ export default function LossBarChart({ records }: Props) {
         },
       ],
     };
-  }, [sorted, selectedCategory]);
+  }, [validRecords, selectedCategory]);
 
   const handleClick = (params: unknown) => {
     const p = params as { dataIndex?: number };
     if (p.dataIndex !== undefined) {
-      const clicked = sorted[p.dataIndex];
+      const clicked = validRecords[p.dataIndex];
       if (clicked) {
         setSelectedCategory(selectedCategory === clicked.category ? null : clicked.category);
       }
@@ -92,6 +95,7 @@ export default function LossBarChart({ records }: Props) {
       <ReactEChartsCore
         echarts={echarts}
         option={option}
+        notMerge={true}
         style={{ height: 520 }}
         onEvents={{ click: handleClick }}
       />
