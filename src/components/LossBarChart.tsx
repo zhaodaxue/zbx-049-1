@@ -12,20 +12,42 @@ echarts.use([BarChart, GridComponent, TooltipComponent, TitleComponent, CanvasRe
 
 interface Props {
   records: LossRecord[];
+  filteredBatchIds?: string[];
 }
 
-export default function LossBarChart({ records }: Props) {
-  const { selectedCategory, setSelectedCategory } = useDashboardStore();
+const COMPARE_COLORS = ["#19A7CE", "#FED36A", "#FF6B6B"];
+
+export default function LossBarChart({ records, filteredBatchIds }: Props) {
+  const { selectedCategory, setSelectedCategory, compareBatchIds, toggleCompareBatch, isComparing } = useDashboardStore();
 
   const validRecords = useMemo(() => filterValidRecords(records), [records]);
 
+  const displayRecords = useMemo(() => {
+    if (!filteredBatchIds) return validRecords;
+    return validRecords.filter((r) => filteredBatchIds.includes(r.batchId));
+  }, [validRecords, filteredBatchIds]);
+
   const option = useMemo(() => {
-    const batchIds = validRecords.map((r) => r.batchId);
-    const lossValues = validRecords.map((r) => +(r.lossRate * 100).toFixed(2));
-    const colors = validRecords.map((r) => {
+    const batchIds = displayRecords.map((r) => r.batchId);
+    const lossValues = displayRecords.map((r) => +(r.lossRate * 100).toFixed(2));
+
+    const colors = displayRecords.map((r) => {
+      const compareIdx = compareBatchIds.indexOf(r.batchId);
+      if (compareIdx !== -1) {
+        return COMPARE_COLORS[compareIdx % COMPARE_COLORS.length];
+      }
       if (r.isHighLoss) return "#E94560";
+      if (isComparing) return "rgba(25,167,206,0.15)";
       if (selectedCategory && r.category !== selectedCategory) return "rgba(25,167,206,0.25)";
       return "#19A7CE";
+    });
+
+    const borderColors = displayRecords.map((r) => {
+      const compareIdx = compareBatchIds.indexOf(r.batchId);
+      if (compareIdx !== -1) {
+        return COMPARE_COLORS[compareIdx % COMPARE_COLORS.length];
+      }
+      return "transparent";
     });
 
     return {
@@ -44,9 +66,11 @@ export default function LossBarChart({ records }: Props) {
         formatter: (params: unknown) => {
           const p = Array.isArray(params) ? params[0] : params;
           const idx = p.dataIndex as number;
-          const rec = validRecords[idx];
+          const rec = displayRecords[idx];
           if (!rec) return "";
-          return `<b>${rec.batchId}</b><br/>品类：${rec.category}<br/>损耗率：<span style="color:#E94560;font-weight:bold">${(rec.lossRate * 100).toFixed(2)}%</span><br/>到货：${rec.arrivalWeight}kg → 解冻：${rec.thawedWeight}kg<br/>到货日：${rec.arrivalDate}`;
+          const compareIdx = compareBatchIds.indexOf(rec.batchId);
+          const compareNote = compareIdx !== -1 ? `<br/><span style="color:#FED36A">✓ 已加入对比 #${compareIdx + 1}</span>` : "";
+          return `<b>${rec.batchId}</b><br/>品类：${rec.category}<br/>损耗率：<span style="color:#E94560;font-weight:bold">${(rec.lossRate * 100).toFixed(2)}%</span><br/>到货：${rec.arrivalWeight}kg → 解冻：${rec.thawedWeight}kg<br/>到货日：${rec.arrivalDate}${compareNote}`;
         },
       },
       grid: { left: 130, right: 40, top: 50, bottom: 24 },
@@ -65,7 +89,15 @@ export default function LossBarChart({ records }: Props) {
       series: [
         {
           type: "bar",
-          data: lossValues.map((v, i) => ({ value: v, itemStyle: { color: colors[i] } })),
+          data: lossValues.map((v, i) => ({
+            value: v,
+            itemStyle: {
+              color: colors[i],
+              borderColor: borderColors[i],
+              borderWidth: compareBatchIds.includes(displayRecords[i]?.batchId) ? 2 : 0,
+              borderRadius: [0, 4, 4, 0],
+            },
+          })),
           barWidth: 14,
           label: {
             show: true,
@@ -78,13 +110,21 @@ export default function LossBarChart({ records }: Props) {
         },
       ],
     };
-  }, [validRecords, selectedCategory]);
+  }, [displayRecords, selectedCategory, compareBatchIds, isComparing]);
 
-  const handleClick = (params: unknown) => {
+  const handleClick = (params: unknown, event: unknown) => {
     const p = params as { dataIndex?: number };
-    if (p.dataIndex !== undefined) {
-      const clicked = validRecords[p.dataIndex];
-      if (clicked) {
+    if (p.dataIndex === undefined) return;
+    const clicked = displayRecords[p.dataIndex];
+    if (!clicked) return;
+
+    const e = event as { ctrlKey?: boolean; metaKey?: boolean };
+    const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+
+    if (isCtrlOrCmd) {
+      toggleCompareBatch(clicked.batchId);
+    } else {
+      if (!isComparing) {
         setSelectedCategory(selectedCategory === clicked.category ? null : clicked.category);
       }
     }

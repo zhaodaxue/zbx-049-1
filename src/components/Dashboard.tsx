@@ -1,17 +1,36 @@
 import { useMemo } from "react";
 import { parseBatches } from "@/utils/parseData";
-import { enrichWithLoss } from "@/utils/calcLoss";
+import { enrichWithLoss, filterValidRecords } from "@/utils/calcLoss";
 import CategoryFilter from "@/components/CategoryFilter";
 import LossBarChart from "@/components/LossBarChart";
 import HighLossTable from "@/components/HighLossTable";
 import CategoryLineChart from "@/components/CategoryLineChart";
+import ComparisonBar from "@/components/ComparisonBar";
+import { useDashboardStore } from "@/store/useDashboardStore";
 import { Snowflake, Fish } from "lucide-react";
 
 export default function Dashboard() {
+  const { selectedCategory } = useDashboardStore();
+
   const lossRecords = useMemo(() => {
     const parsed = parseBatches();
     return enrichWithLoss(parsed);
   }, []);
+
+  const validRecords = useMemo(() => filterValidRecords(lossRecords), [lossRecords]);
+
+  const filteredBatchIds = useMemo(() => {
+    if (!selectedCategory) return validRecords.map((r) => r.batchId);
+    return validRecords
+      .filter((r) => r.category === selectedCategory)
+      .map((r) => r.batchId);
+  }, [validRecords, selectedCategory]);
+
+  const visibleBatchIds = useMemo(() => {
+    return validRecords
+      .filter((r) => !selectedCategory || r.category === selectedCategory)
+      .map((r) => r.batchId);
+  }, [validRecords, selectedCategory]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0B2447] via-[#0f2d5e] to-[#091b3a] text-white relative overflow-hidden">
@@ -43,23 +62,25 @@ export default function Dashboard() {
       </header>
 
       <main className="relative z-10 max-w-[1600px] mx-auto px-6 py-6">
+        <ComparisonBar records={lossRecords} visibleBatchIds={visibleBatchIds} />
+
         <div className="mb-5">
           <CategoryFilter records={lossRecords} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr] gap-5">
           <div className="flex flex-col gap-5">
-            <LossBarChart records={lossRecords} />
-            <HighLossTable records={lossRecords} />
+            <LossBarChart records={lossRecords} filteredBatchIds={filteredBatchIds} />
+            <HighLossTable records={lossRecords} filteredBatchIds={filteredBatchIds} />
           </div>
           <div>
-            <CategoryLineChart records={lossRecords} />
+            <CategoryLineChart records={lossRecords} filteredBatchIds={visibleBatchIds} />
           </div>
         </div>
       </main>
 
       <footer className="relative z-10 border-t border-[#19A7CE]/10 mt-8 py-4 text-center text-[#3a4a7a] text-[10px]">
-        损耗率 = (到货净重 − 解冻后净重) ÷ 到货净重 &nbsp;|&nbsp; 高损耗阈值 ≥ 8%
+        损耗率 = (到货净重 − 解冻后净重) ÷ 到货净重 &nbsp;|&nbsp; 高损耗阈值 ≥ 8% &nbsp;|&nbsp; Ctrl+点击加入对比
       </footer>
     </div>
   );
